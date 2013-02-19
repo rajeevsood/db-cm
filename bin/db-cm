@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require 'db-cm'
+
+Db::Cm::Commands.start

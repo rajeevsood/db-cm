@@ -1,0 +1,7 @@
+---
+  env_name: '<%=config[:env]%>'
+  db:
+    connection_string: 'foo'
+  version_log_table_name:  '<%=config[:app_name]%>_version_log'
+
+...

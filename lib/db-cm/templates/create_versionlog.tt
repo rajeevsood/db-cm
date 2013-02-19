@@ -1,0 +1,13 @@
+CREATE TABLE <%=config[:version_log_table]%> (
+APPLIED_AT VARCHAR(25) NOT NULL,
+DESCRIPTION VARCHAR(255) NOT NULL
+);
+
+ALTER TABLE <%=config[:version_log_table]%>
+ADD CONSTRAINT PK_<%=config[:version_log_table]%>
+PRIMARY KEY (id);
+
+--//@UNDO
+
+DROP TABLE <%=config[:version_log_table]%>;
+
