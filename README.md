@@ -1,6 +1,8 @@
 # Db::Cm
 
-TODO: Write a gem description
+DB-CM is (will be) a DB version management tool based on MyBatis Migrations.  There are some differences in intent, though.  MyBatis Migrationssupports the concept of a single file per migration.  DB-CM will support directory per migration, allowing for separation of the different parts of a migration (i.e. ddl changes, data changes, sprocs, etc) following a convention-over-configuration model.  
+
+Stay posted for more to come as it is developed.
 
 ## Installation
 
