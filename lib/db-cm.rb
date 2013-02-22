@@ -5,3 +5,8 @@ module Db
     # Your code goes here...
   end
 end
+
+require "db-cm/commands"
+
+
+

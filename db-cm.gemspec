@@ -7,9 +7,9 @@ Gem::Specification.new do |gem|
   gem.name          = "db-cm"
   gem.version       = Db::Cm::VERSION
   gem.authors       = ["rajeevsood"]
-  gem.email         = ["TODO: Write your email address"]
-  gem.description   = %q{TODO: Write a gem description}
-  gem.summary       = %q{TODO: Write a gem summary}
+  gem.email         = ["foo@bar.com"]
+  gem.description   = %q{Write a gem description}
+  gem.summary       = %q{Write a gem summary}
   gem.homepage      = ""
 
   gem.files         = `git ls-files`.split($/)
@@ -22,5 +22,6 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency('rspec')
   gem.add_development_dependency('watchr')
   gem.add_development_dependency('debugger')
+  gem.add_development_dependency('bundler')
 
 end
