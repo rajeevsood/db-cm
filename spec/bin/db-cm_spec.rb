@@ -44,8 +44,8 @@ describe Db::Cm::Commands do
       File.exists?(File.join(@test_root_dir, @test_dir, 'environments', 'production.yaml')).should be_true
     end
 
-    it "creates the @test_dir/migrations/bootstrap/80_custom.sql" do
-      File.exists?(File.join(@test_root_dir, @test_dir, 'bootstrap', '80_custom.sql')).should be_true
+    it "creates the @test_dir/migrations/bootstrap/01_bootstrap.sql" do
+      File.exists?(File.join(@test_root_dir, @test_dir, 'bootstrap', '01_bootstrap.sql')).should be_true
     end
   end
 
@@ -168,6 +168,26 @@ describe Db::Cm::Commands do
       File.exists?(filename).should be_true
     end
   end
+
+  describe "#env" do
+    before :each do      
+      @sut.init @test_dir
+
+    end
+
+    after :each do
+      FileUtils.remove_dir File.join(@test_root_dir, @test_dir) 
+    end
+
+    it "lists all the configured environments" do
+      envs = @sut.env
+      envs.should include 'test'
+      envs.should include 'development'
+      envs.should include 'production'
+    end
+end    
+
+
   
 end
 
