@@ -7,6 +7,6 @@ module Db
 end
 
 require "db-cm/commands"
-
+require "db-cm/db/connection_adapter"
 
 

@@ -49,7 +49,6 @@ describe Db::Cm::Commands do
     end
   end
 
-
   describe "#add" do
     before :each do      
       @sut.init @test_dir
@@ -172,7 +171,6 @@ describe Db::Cm::Commands do
   describe "#env" do
     before :each do      
       @sut.init @test_dir
-
     end
 
     after :each do
@@ -185,9 +183,28 @@ describe Db::Cm::Commands do
       envs.should include 'development'
       envs.should include 'production'
     end
-end    
+end     
+
+  describe "#bootstrap" do
+    before :each do      
+      @sut.init @test_dir
+    end
+
+    after :each do
+      FileUtils.remove_dir File.join(@test_root_dir, @test_dir) 
+    end
+
+    it 'does not do anything if the bootstrap directory has no sql to run' do
+      result = @sut.bootstrap 'test'
+      result.should be_false
+    end
+    
 
 
+    
+    
+    end
+ 
   
 end
 
