@@ -5,6 +5,11 @@ describe Db::Cm::Commands do
     @test_dir="test_root"
     @sut = Db::Cm::Commands.new
     @test_root_dir = @sut.destination_root
+
+    FileUtils.remove_dir File.join(@test_root_dir, @test_dir), true
+
+    Java::OrgApacheDerbyJdbc::EmbeddedDriver.new
+    @connection_string = 'jdbc:derby:memory:derbyDB_#{time};create=true'
   end 
 
   describe "#init" do
@@ -13,7 +18,7 @@ describe Db::Cm::Commands do
     end
 
     after :each do
-      FileUtils.remove_dir File.join(@test_root_dir, @test_dir) 
+      FileUtils.remove_dir File.join(@test_root_dir, @test_dir), true
     end
     
     it "creates the project root directory" do
@@ -26,6 +31,10 @@ describe Db::Cm::Commands do
 
     it "creates the @test_dir/bootstrap sub-directory" do
       File.directory?(File.join(@test_root_dir, @test_dir, 'bootstrap')).should be_true
+    end
+
+    it "creates the @test_dir/bootstrap comment.txt file" do
+      File.exists?(File.join(@test_root_dir, @test_dir, 'bootstrap', 'comment.txt')).should be_true
     end
 
     it "creates the @test_dir/migrations sub-directory" do
@@ -70,11 +79,11 @@ describe Db::Cm::Commands do
       File.directory?(File.join(@test_root_dir, @test_dir, 'migrations', @dir_name)).should be_true
     end
     
-    it "creates the version.txt based on the comment" do
-      version_filename = File.join(@test_root_dir, @test_dir, 'migrations', @dir_name, 'version.txt')
-      File.exists?(version_filename).should be_true
-      version_contents = IO.read(version_filename)
-      @comment.should eq version_contents
+    it "creates the comment.txt based on the comment" do
+      comment_filename = File.join(@test_root_dir, @test_dir, 'migrations', @dir_name, 'comment.txt')
+      File.exists?(comment_filename).should be_true
+      comment_contents = IO.read(comment_filename)
+      @comment.should eq comment_contents
     end
 
     it "creates the 10_ddl.sql file" do
@@ -174,7 +183,7 @@ describe Db::Cm::Commands do
     end
 
     after :each do
-      FileUtils.remove_dir File.join(@test_root_dir, @test_dir) 
+      FileUtils.remove_dir File.join(@test_root_dir, @test_dir), true
     end
 
     it "lists all the configured environments" do
@@ -191,7 +200,7 @@ end
     end
 
     after :each do
-      FileUtils.remove_dir File.join(@test_root_dir, @test_dir) 
+      FileUtils.remove_dir File.join(@test_root_dir, @test_dir), true
     end
 
     it 'does not do anything if the bootstrap directory has no sql to run' do
@@ -199,12 +208,39 @@ end
       result.should be_false
     end
     
-
-
-    
-    
+    it 'creates the version table and inserts the bootstrap record when the table is not there' do
+      configure_test_environment @connection_string
+      sql = "CREATE TABLE foo(id varchar(45));"
+      File.open(File.join(@test_root_dir, @test_dir, 'bootstrap', '01_bootstrap.sql'), 'wb') {|f| f.write(sql) }
+      result = @sut.bootstrap 'test'
+      puts result
     end
- 
+     
+
+
+    
+    
+  end
+
+
+  private
+  def configure_test_environment(conn_string)
+    env_yaml = <<EOS
+---
+env_name: 'test'
+db:
+  connection_string: #{conn_string}
+  username: ''
+  password: ''
+version_log_table_name:  'spec_version_log'
+schema_name: ''
+variables:
+...
+EOS
+    filename = File.join(@test_root_dir, @test_dir, 'environments', 'test.yaml')
+    File.open(filename, 'w+') {|f| f.write(env_yaml) }
+  end
+  
   
 end
 

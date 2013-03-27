@@ -17,7 +17,7 @@ module Db
         app_root = File.join(self.destination_root, app_name)
         empty_directory app_root
         self.destination_root = app_root
-          
+           
         empty_directory 'environments'
         empty_directory 'bootstrap'
         empty_directory 'migrations' 
@@ -27,6 +27,7 @@ module Db
         end
 
         create_file File.join('bootstrap', '01_bootstrap.sql')
+        create_file File.join('bootstrap', 'comment.txt'), 'Initial bootstrap'
       end
 
       desc 'env', "Lists the available environments"
@@ -65,7 +66,7 @@ module Db
         create_file File.join(migration_base_dir, '70_sprocs.sql')
         create_file File.join(migration_base_dir, '80_custom.sql')
         create_file File.join(migration_base_dir, '90_grants.sql')
-        create_file File.join(migration_base_dir, 'version.txt'), comment
+        create_file File.join(migration_base_dir, 'comment.txt'), comment
 
         undo_base_dir = File.join(migration_base_dir, 'undo')
         empty_directory undo_base_dir
@@ -88,10 +89,22 @@ module Db
         end
         
         load_environment env_name
-#        check_db_settings
+        check_db_settings
 
+        connection =
+          Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['username'], @config['db']['password'])
+#        connection.do_script
+        migration_directory = bootstrap_dir
+        scripts = scripts_for_migration migration_directory
+        comment = comment_for_migration migration_directory
 
+        scripts.each do |script|
+          script_contents = File.open(File.join(migration_directory, script), 'rb') {|f| f.read }
+          results = connection.do_script script_contents
+          puts results
+        end
 
+        #add comment for migration
         
         
       end
@@ -110,8 +123,6 @@ module Db
       end
 
       def check_db_settings()
-        raise Error, "No environment configuration specified"
-
         env_name = ['env_name']
         @username = @config['db']['username']
         if @username.nil?
@@ -131,6 +142,14 @@ module Db
         File.join(self.destination_root, 'bootstrap')
       end
 
+      def migration_dir(migration_id)
+        File.join(self.destination_root, 'migrations', migration_id)
+      end
+
+      def migration_comment_filename(migration_dir)
+        File.join(migration_dir, 'comment.txt')
+      end
+
       def has_bootstrap_available?()
         sql_entries = Dir.entries(bootstrap_dir).select{|e| e=~%r[.*\.sql]}
         sql_entries.each do |sql|
@@ -142,7 +161,40 @@ module Db
         return false
       end
       
+      def scripts_for_migration_id(migration_id)
+        raise Error, 'no migration specified' if migration_id.nil?
+        migration_dir = migration_dir(migration_id)
+        scripts_for_migration migration_dir
+      end
+
+      def scripts_for_migration(migration_dir)
+        raise Error, "Directory '#{migration_dir}' does not exist or is not a directory" unless Dir.exists?(migration_dir)
+
+        scripts = []
+        sql_entries = Dir.entries(migration_dir).select{|e| e=~%r[.*\.sql]}
+        sql_entries.each do |sql|
+          unless File.stat(File.join(migration_dir, sql)).zero?
+            scripts << sql
+          end
+        end
       
+        scripts.sort!
+      end
+
+      def comment_for_migration_id(migration_id)
+        raise Error, 'no migration specified' if migration_id.nil?
+        migration_dir = migration_dir(migration_id)
+        comment_for_migration migration_dir
+      end
+
+      def comment_for_migration(migration_dir)
+        raise Error, "Directory '#{migration_dir}' does not exist or is not a directory" unless Dir.exists?(migration_dir)
+        comment_filename = migration_comment_filename(migration_dir)
+        raise Error, "Comment file '#{comment_filename}' does not exist" unless File.exist?(comment_filename)
+        raise Error, "Comment file '#{comment_filename}' is empty.  Please supply a comment." if File.stat(comment_filename).zero?
+
+        File.open(comment_filename, 'rb') {|f| f.read }
+      end
     end
   end
 end

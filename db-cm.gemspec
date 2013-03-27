@@ -11,6 +11,7 @@ Gem::Specification.new do |gem|
   gem.description   = %q{Write a gem description}
   gem.summary       = %q{Write a gem summary}
   gem.homepage      = ""
+  gem.platform      = 'java'
 
   gem.files         = `git ls-files`.split($/)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
@@ -22,7 +23,8 @@ Gem::Specification.new do |gem|
 
   gem.add_development_dependency('rspec')
   gem.add_development_dependency('watchr')
-  gem.add_development_dependency('debugger')
+#  gem.add_development_dependency('debugger')
+  gem.add_development_dependency('ruby-debug')
   gem.add_development_dependency('bundler')
 
 end
