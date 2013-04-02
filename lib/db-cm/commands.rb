@@ -37,7 +37,8 @@ module Db
         dir_entries = Dir.entries(config_dir).select{|e| e=~%r[.*\.yaml]}
         envs = []
         dir_entries.each do |entry|
-          env_config = YAML.load_file(File.join(config_dir, entry))
+#          env_config = YAML.load_file(File.join(config_dir, entry))
+          env_config = File.open(File.join(config_dir, entry), 'r') {|f| YAML.load(f)}
           envs << [env_config['env_name'], env_config['db']['connection_string']]
         end
           
@@ -91,27 +92,115 @@ module Db
         load_environment env_name
         check_db_settings
 
-        connection =
+        connection_adapter =
           Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['username'], @config['db']['password'])
-#        connection.do_script
         migration_directory = bootstrap_dir
         scripts = scripts_for_migration migration_directory
         comment = comment_for_migration migration_directory
 
+        results = run_migration connection_adapter, migration_directory, VersionLog::BOOTSTRAP_MIGRATION_ID, scripts, comment
+      end
+
+      desc 'status ENV_NAME', 'report the current status of the database for the specified environment'
+      def status(env_name)
+        load_environment env_name
+        check_db_settings
+
+        entries = []
+        #calculate local
+        entries = migrations_from_local_repository
+
+        connection_adapter =
+            Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['username'], @config['db']['password'])
+        version_log = VersionLog.new connection_adapter, @config['schema_name'], @config['version_log_table_name']
+        if version_log.version_log_table_exists?
+          db_entries = version_log.get_entries
+
+          db_entries.each do |db_entry|
+            the_index = entries.index{|e| e.migration_id==db_entry.migration_id}
+            next if the_index.nil?
+            entries[the_index] = db_entry
+          end
+        end
+
+        table_entries = entries.map {|entry| [entry.migration_id, entry.applied_at, entry.description]}
+
+        table = Terminal::Table.new :headings => ['Id', 'Applied At', 'Description'], :rows => table_entries
+
+        say table.to_s
+        entries
+      end
+
+      desc 'up ENV_NAME [NUM_MIGRATIONS_TO_RUN]', 'runs all of the migrations newer than the current state against the database for the specified environment.  Use second parameter to limit the number of migrations to apply.'
+      def up(env_name, steps_to_run=-1)
+        load_environment env_name
+        check_db_settings
+
+        connection_adapter =
+            Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['username'], @config['db']['password'])
+
+        #calculate and run the pending migrations
+        entries = status env_name
+        entries.reverse!
+
+        new_migrations = []
+        entries.each do |entry|
+          unless entry.already_run?
+            new_migrations << entry
+          else
+            break
+          end
+        end
+
+        new_migrations.reverse!
+
+        while ((not new_migrations.empty?) and steps_to_run != 0)
+          entry = new_migrations.shift
+
+          migration_directory = migration_dir entry.migration_id
+          scripts = scripts_for_migration migration_directory
+          comment = comment_for_migration migration_directory
+
+          run_migration connection_adapter, migration_directory, entry.migration_id, scripts, comment
+
+          steps_to_run = steps_to_run - 1
+        end
+      end
+
+
+      private
+      def run_migration(connection_adapter, migration_directory, migration_id, scripts, comment)
+        results = ''
+        version_log = VersionLog.new connection_adapter, @config['schema_name'], @config['version_log_table_name']
+
+        unless version_log.version_log_table_exists?
+          version_log.create_table
+          raise Error, 'problem creating version log table' unless version_log.version_log_table_exists?
+        end
+
+        substitutions = {'schema_name'=>@config['schema_name']}
+        substitutions.merge! @config['variables'] unless @config['variables'].nil?
+
+        #make the keys symbols for the % format below
+        substitutions = Hash[substitutions.map{|(k,v)| [k.to_sym,v]}]
+
         scripts.each do |script|
           script_contents = File.open(File.join(migration_directory, script), 'rb') {|f| f.read }
-          results = connection.do_script script_contents
-          puts results
+          script_contents = script_contents % substitutions
+
+#          puts "script[#{script}]:  '#{script_contents}'"
+
+          results = connection_adapter.do_script script_contents
         end
 
         #add comment for migration
-        
-        
-      end
-      
-      
+        success = version_log.insert_entry migration_id, comment
 
-      private
+        results << "\r\n Version Log table update failed for migration #{migration_id}" unless success
+
+        results
+      end
+
       def valid_db_cm_project?()
         File.directory?(File.join(self.destination_root, 'migrations'))
       end
@@ -119,7 +208,7 @@ module Db
       def load_environment(name)
         env_file = File.join(env_dir, "#{name}.yaml")
         raise Error, "Could not find matching environment file '#{name}.yaml' in #{env_dir}" if not File.exists?(env_file)
-        @config = YAML.load_file env_file        
+        @config = File.open(env_file, 'r') {|f| YAML.load(f)}
       end
 
       def check_db_settings()
@@ -143,7 +232,11 @@ module Db
       end
 
       def migration_dir(migration_id)
-        File.join(self.destination_root, 'migrations', migration_id)
+        File.join(migration_root_dir, migration_id)
+      end
+
+      def migration_root_dir
+        File.join(self.destination_root, 'migrations')
       end
 
       def migration_comment_filename(migration_dir)
@@ -159,6 +252,26 @@ module Db
         end
         
         return false
+      end
+
+      def migrations_from_local_repository()
+        raise Error, "Currently not in the root of a db-cm created project.  Please go there and try again." unless valid_db_cm_project?
+
+        repository_entries = []
+
+        if has_bootstrap_available?
+          comment = comment_for_migration bootstrap_dir
+          repository_entries << VersionLogEntry.new(VersionLog::BOOTSTRAP_MIGRATION_ID, VersionLog::PENDING_APPLIED_AT, comment, false)
+        end
+
+        migrations = Dir.entries(migration_root_dir).select{|e| (File.directory?(File.join(migration_root_dir, e)) and e=~%r[\d\w*])}.sort
+
+        migrations.each do |migration_id|
+          comment = comment_for_migration migration_dir migration_id
+          repository_entries << VersionLogEntry.new(migration_id, VersionLog::PENDING_APPLIED_AT, comment, false)
+        end
+
+        repository_entries
       end
       
       def scripts_for_migration_id(migration_id)

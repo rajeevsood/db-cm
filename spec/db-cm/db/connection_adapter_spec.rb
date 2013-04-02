@@ -17,10 +17,14 @@ describe Db::Cm::Db::ConnectionAdapter do
       records.should be_an_instance_of Array
     end
   end
-  
 
+  describe "#table_exists?" do
+    it "returns true when the table exists in the database" do
+      @sut.table_exists?('SYS', 'SYSUSERS').should be_true
 
-
-
-
+    end
+    it "returns false when the table does not exist in the database" do
+      @sut.table_exists?('SYS', 'QWERTY').should be_false
+    end
+  end
 end

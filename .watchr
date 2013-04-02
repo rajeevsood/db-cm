@@ -3,7 +3,7 @@ require 'rubygems'
 
 def run_specs
   puts "Running specs..."
-  result = `rspec spec`
+  result = `rspec spec --format documentation`
   result.split("\n").each do |msg|
     puts msg
   end

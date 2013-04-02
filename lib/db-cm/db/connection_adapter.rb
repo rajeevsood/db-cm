@@ -45,9 +45,14 @@ module Db
           script_results.to_string
         end
 
-        def insert(sql)
+        def insert(sql, *args)
           sql_runner = get_sql_runner
-          number_records_updated = sql_runner.insert sql
+          unless args.empty?
+            number_records_updated = sql_runner.insert sql, args.to_java
+          else
+            number_records_updated = sql_runner.insert sql
+          end
+
           number_records_updated
         end
 
@@ -63,21 +68,31 @@ module Db
           number_records_updated
         end
 
+        def table_exists?(schema_name, table_name)
+          connect
+          meta_data = @connection.get_meta_data
+          tables = meta_data.get_tables(nil, schema_name.upcase, table_name.upcase, nil)
+          result = (not tables.nil? and tables.next)
+          tables.close
+          result
+        end
+
         private
         def get_sql_runner
-          connection = connect
-          connection.auto_commit = true
-          sql_runner = Java::OrgApacheIbatisJdbc::SqlRunner.new connection
+          connect
+          @connection.auto_commit = true
+          sql_runner = Java::OrgApacheIbatisJdbc::SqlRunner.new @connection
           sql_runner.use_generated_key_support = false
           sql_runner
         end
 
         def get_script_runner
-          connection = connect
-          connection.auto_commit = true
-          script_runner = Java::OrgApacheIbatisJdbc::ScriptRunner.new connection
+          connect
+          @connection.auto_commit = true
+          script_runner = Java::OrgApacheIbatisJdbc::ScriptRunner.new @connection
           script_runner.setStopOnError true
           script_runner.setEscapeProcessing false
+          script_runner.setAutoCommit true
 #          scriptRunner.setAutoCommit(Boolean.valueOf(props.getProperty("auto_commit")));
 #          scriptRunner.setDelimiter(delimiterString == null ? ";" : delimiterString);
 #          scriptRunner.setFullLineDelimiter(Boolean.valueOf(props.getProperty("full_line_delimiter")));
@@ -87,11 +102,14 @@ module Db
         end
 
         def connect
-          unless (@username.nil? or @password.nil?)
-            @connection = Java::JavaSql::DriverManager.getConnection(@connection_string, @username, @password)
-          else
-            @connection = Java::JavaSql::DriverManager.getConnection(@connection_string)
+          if @connection.nil? or not @connection.is_valid? 0
+            unless (@username.nil? or @password.nil?)
+              @connection = Java::JavaSql::DriverManager.getConnection(@connection_string, @username, @password)
+            else
+              @connection = Java::JavaSql::DriverManager.getConnection(@connection_string)
+            end
           end
+          @connection
         end
       end
     end    
