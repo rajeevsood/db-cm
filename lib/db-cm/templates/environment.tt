@@ -2,9 +2,12 @@
 env_name: '<%=config[:env]%>'
 db:
   connection_string: 'jdbc:somedb'
+  driver: ~
   username: ~
   password: ~
 version_log_table_name:  '<%=config[:app_name]%>_version_log'
 schema_name: ''
+default_delimiter: ';'
+multiline_delimiter: '/'
 variables:
 ...

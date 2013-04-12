@@ -8,9 +8,11 @@ describe Db::Cm::Commands do
 
     FileUtils.remove_dir File.join(@test_root_dir, @test_dir), true
     time = Time.new.to_i
-    Java::OrgApacheDerbyJdbc::EmbeddedDriver.new
+#    Java::OrgApacheDerbyJdbc::EmbeddedDriver.new
     @connection_string = "jdbc:derby:memory:derbyDB_#{time};create=true"
     @drop_connection_string = "jdbc:derby:memory:derbyDB_#{time};drop=true"
+    @driver = 'org.apache.derby.jdbc.EmbeddedDriver'
+#    @driver = 'java.lang.String'
   end
 
   describe "#init" do
@@ -210,7 +212,7 @@ end
     end
     
     it 'creates the version table and inserts the bootstrap record when the table is not there' do
-      configure_test_environment @connection_string
+      configure_test_environment @connection_string, @driver
       create_bootstrap_migration
       result = @sut.bootstrap 'test'
       result.should be_true
@@ -220,12 +222,12 @@ end
   describe "#status" do
     before :each do
       @sut.init @test_dir
-      configure_test_environment_with_variables @connection_string
+      configure_test_environment_with_variables @connection_string, @driver
       create_bootstrap_migration
       @migration_id_1 = create_sample_migration_1
       sleep(1)
       @migration_id_2 = create_sample_migration_2
-    end 
+    end
 
     after :each do
       FileUtils.remove_dir File.join(@test_root_dir, @test_dir), true
@@ -270,7 +272,7 @@ end
   describe "#up" do
     before :each do
       @sut.init @test_dir
-      configure_test_environment_with_variables @connection_string
+      configure_test_environment_with_variables @connection_string, @driver
       create_bootstrap_migration
       @migration_id_1 = create_sample_migration_1
       sleep(1)
@@ -280,6 +282,11 @@ end
 
     after :each do
       FileUtils.remove_dir File.join(@test_root_dir, @test_dir), true
+    end
+
+    it 'fails to run any migrations when up is called for an environment with no driver specified' do
+      configure_test_environment_with_variables @connection_string, '~'
+      expect { @sut.up('test') }.to raise_error
     end
 
     it 'runs all migrations when up is called with no number of steps specified and updates the version log table appropriately' do
@@ -334,12 +341,13 @@ end
   end
 
   private
-  def configure_test_environment(conn_string)
+  def configure_test_environment(conn_string, driver)
     env_yaml = <<EOS
 ---
 env_name: 'test'
 db:
   connection_string: #{conn_string}
+  driver: #{driver}
   username: ''
   password: ''
 version_log_table_name:  'spec_version_log'
@@ -351,16 +359,19 @@ EOS
     File.open(filename, 'wb') {|f| f.write(env_yaml) }
   end
 
-  def configure_test_environment_with_variables(conn_string)
+  def configure_test_environment_with_variables(conn_string, driver)
     env_yaml = <<EOS
 ---
 env_name: 'test'
 db:
   connection_string: #{conn_string}
+  driver: #{driver}
   username: ''
   password: ''
 version_log_table_name:  'spec_version_log'
 schema_name: 'spec_schema'
+default_delimiter: ';'
+multiline_delimiter: '/'
 variables:
   test_var1: 'foobar'
   test_var2: '6'

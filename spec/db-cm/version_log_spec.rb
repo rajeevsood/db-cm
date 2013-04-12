@@ -1,13 +1,14 @@
 require 'db-cm/version_log'
 require 'db-cm/version_log_entry'
-include_class 'org.apache.derby.jdbc.EmbeddedDriver'
+#include_class 'org.apache.derby.jdbc.EmbeddedDriver'
 
 describe Db::Cm::VersionLog do
 
   before :each do
     time = Time.new.usec
-    Java::OrgApacheDerbyJdbc::EmbeddedDriver.new
-    @connection_string = "jdbc:derby:memory:derbyDB_#{time};create=true" 
+#    Java::OrgApacheDerbyJdbc::EmbeddedDriver.new
+    @connection_string = "jdbc:derby:memory:derbyDB_#{time};create=true"
+    @driver = 'org.apache.derby.jdbc.EmbeddedDriver'
     @sut = Db::Cm::VersionLog.new get_connection_adapter, "SCHEMA_NAME", "TABLE_NAME"
   end
   
@@ -80,6 +81,6 @@ describe Db::Cm::VersionLog do
 #    Java::JavaSql::DriverManager.getConnection @connection_string
 #  end
   def get_connection_adapter
-    Db::Cm::Db::ConnectionAdapter.new @connection_string, '', ''
+    Db::Cm::Db::ConnectionAdapter.new @connection_string, @driver, '', ''
   end
 end

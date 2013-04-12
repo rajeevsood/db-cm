@@ -7,6 +7,7 @@ module Db
   module Cm
     class Commands < Thor
       include Thor::Actions
+      package_name 'db-cm'
 
       def self.source_root
         File.dirname(__FILE__)
@@ -39,10 +40,10 @@ module Db
         dir_entries.each do |entry|
 #          env_config = YAML.load_file(File.join(config_dir, entry))
           env_config = File.open(File.join(config_dir, entry), 'r') {|f| YAML.load(f)}
-          envs << [env_config['env_name'], env_config['db']['connection_string']]
+          envs << [env_config['env_name'], env_config['db']['driver'], env_config['db']['connection_string']]
         end
           
-        table = Terminal::Table.new :headings => ['Environments', 'Connection String'], :rows => envs
+        table = Terminal::Table.new :headings => ['Environments', 'Driver', 'Connection String'], :rows => envs
 
         say table.to_s
 
@@ -92,8 +93,7 @@ module Db
         load_environment env_name
         check_db_settings
 
-        connection_adapter =
-          Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['username'], @config['db']['password'])
+        connection_adapter = get_connection_adapter
         migration_directory = bootstrap_dir
         scripts = scripts_for_migration migration_directory
         comment = comment_for_migration migration_directory
@@ -103,6 +103,7 @@ module Db
 
       desc 'status ENV_NAME', 'report the current status of the database for the specified environment'
       def status(env_name)
+=begin
         load_environment env_name
         check_db_settings
 
@@ -110,8 +111,7 @@ module Db
         #calculate local
         entries = migrations_from_local_repository
 
-        connection_adapter =
-            Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['username'], @config['db']['password'])
+        connection_adapter = get_connection_adapter
         version_log = VersionLog.new connection_adapter, @config['schema_name'], @config['version_log_table_name']
         if version_log.version_log_table_exists?
           db_entries = version_log.get_entries
@@ -122,7 +122,8 @@ module Db
             entries[the_index] = db_entry
           end
         end
-
+=end
+        entries = calculate_status env_name
         table_entries = entries.map {|entry| [entry.migration_id, entry.applied_at, entry.description]}
 
         table = Terminal::Table.new :headings => ['Id', 'Applied At', 'Description'], :rows => table_entries
@@ -136,11 +137,10 @@ module Db
         load_environment env_name
         check_db_settings
 
-        connection_adapter =
-            Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['username'], @config['db']['password'])
+        connection_adapter = get_connection_adapter
 
         #calculate and run the pending migrations
-        entries = status env_name
+        entries = calculate_status env_name
         entries.reverse!
 
         new_migrations = []
@@ -169,6 +169,29 @@ module Db
 
 
       private
+      def calculate_status(env_name)
+        load_environment env_name
+        check_db_settings
+
+        entries = []
+        #calculate local
+        entries = migrations_from_local_repository
+
+        connection_adapter = get_connection_adapter
+        version_log = VersionLog.new connection_adapter, @config['schema_name'], @config['version_log_table_name']
+        if version_log.version_log_table_exists?
+          db_entries = version_log.get_entries
+
+          db_entries.each do |db_entry|
+            the_index = entries.index{|e| e.migration_id==db_entry.migration_id}
+            next if the_index.nil?
+            entries[the_index] = db_entry
+          end
+        end
+
+        entries
+      end
+
       def run_migration(connection_adapter, migration_directory, migration_id, scripts, comment)
         results = ''
         version_log = VersionLog.new connection_adapter, @config['schema_name'], @config['version_log_table_name']
@@ -212,14 +235,18 @@ module Db
       end
 
       def check_db_settings()
-        env_name = ['env_name']
-        @username = @config['db']['username']
+        env_name = @config['env_name']
+
+        @driver = @config['db']['driver']
+        raise Error, "No driver specified for environment '#{env_name}'" if @driver.nil?
+
+        @username = @config['db']['username'] if not defined?(@username) or @username.nil?
         if @username.nil?
-          @username = ask "Please enter a username for #{env_name}"
+          @username = ask "Please enter a username for #{env_name}:"
         end
-        @password = @config['db']['password']
+        @password = @config['db']['password'] if not defined?(@password) or @password.nil?
         if @password.nil?
-          @password = ask "Please enter a password for #{env_name}"
+          @password = ask "Please enter a password for #{env_name}:"
         end
       end
       
@@ -307,6 +334,11 @@ module Db
         raise Error, "Comment file '#{comment_filename}' is empty.  Please supply a comment." if File.stat(comment_filename).zero?
 
         File.open(comment_filename, 'rb') {|f| f.read }
+      end
+
+      def get_connection_adapter
+        Db::ConnectionAdapter.new(@config['db']['connection_string'], @config['db']['driver'], @username,
+                                  @password, @config['default_delimiter'], @config['multiline_delimiter'])
       end
     end
   end
