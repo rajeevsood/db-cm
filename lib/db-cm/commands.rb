@@ -2,6 +2,7 @@ require "rubygems" # ruby1.9 doesn't "require" it though
 require "thor"
 require "terminal-table"
 require "yaml"
+require "highline/import"
 
 module Db
   module Cm
@@ -242,11 +243,11 @@ module Db
 
         @username = @config['db']['username'] if not defined?(@username) or @username.nil?
         if @username.nil?
-          @username = ask "Please enter a username for #{env_name}:"
+          @username = ask "Please enter a username for #{env_name}:\t"
         end
         @password = @config['db']['password'] if not defined?(@password) or @password.nil?
         if @password.nil?
-          @password = ask "Please enter a password for #{env_name}:"
+          @password = HighLine.new.ask("Please enter a password for #{env_name}:\t") {|q| q.echo = false}
         end
       end
       
